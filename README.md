@@ -138,6 +138,26 @@ This project is a Go server with MongoDB integration, designed to handle operati
   curl http://localhost:8080/pullrequests
   ```
 
+### Bulk Upload Route
+
+- **Bulk Upload Pull Requests**:
+  - **Purpose**: Upload multiple pull requests in a single request.
+  - **Endpoint**: `/bulk-upload`
+  - **Method**: POST
+  - **Request Format**: JSON
+  - **Example Request**:
+    ```bash
+    curl -X POST -H "Content-Type: application/json" -d '{"prs":[{"prId":"123","title":"Test PR","author":"Author"},{"prId":"124","title":"Another PR","author":"Author"}]}' http://localhost:8080/bulk-upload
+    ```
+  - **Response Format**: JSON
+  - **Example Response**:
+    ```json
+    {
+      "success_count": 2,
+      "failed_prs": []
+    }
+    ```
+
 ### Cluster Routes
 
 - **Create Cluster**:
