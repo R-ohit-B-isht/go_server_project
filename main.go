@@ -61,6 +61,7 @@ func main() {
 	routes.RegisterAnalysisResultRoutes(router, analysisResultCollection)
 	routes.RegisterProcessingJobRoutes(router, processingJobCollection)
 	routes.RegisterConfigurationRoutes(router, configurationCollection)
+	routes.RegisterBulkUploadRoutes(router, prCollection, repoCollection)
 
 	// Set up HTTP server
 	http.Handle("/", router)
