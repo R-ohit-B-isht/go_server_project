@@ -36,6 +36,18 @@ This document provides an overview of the models and routes in the Go server pro
   - `SimilarityScore`: Similarity score of the pull request.
   - `Cluster`: ObjectID referencing the associated cluster.
 
+### Cluster Model
+
+- **Purpose**: Represents a cluster with its details and associated repository.
+- **Fields**:
+  - `ID`: Unique identifier for the cluster.
+  - `Name`: Name of the cluster.
+  - `Description`: Description of the cluster.
+  - `Centroid`: Centroid data for the cluster.
+  - `PRs`: Array of ObjectIDs referencing associated pull requests.
+  - `ScoreAverage`: Average score of the cluster.
+  - `Repository`: ObjectID referencing the associated repository.
+
 ## Routes
 
 ### Repository Routes

@@ -22,7 +22,15 @@ func RegisterClusterRoutes(router *mux.Router, collection *mongo.Collection) {
 func createCluster(collection *mongo.Collection) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var cluster models.Cluster
-		json.NewDecoder(r.Body).Decode(&cluster)
+		if err := json.NewDecoder(r.Body).Decode(&cluster); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if cluster.Repository.IsZero() {
+			http.Error(w, "Repository reference is required", http.StatusBadRequest)
+			return
+		}
 
 		result, err := collection.InsertOne(r.Context(), cluster)
 		if err != nil {
@@ -77,7 +85,15 @@ func updateCluster(collection *mongo.Collection) http.HandlerFunc {
 		id, _ := primitive.ObjectIDFromHex(params["id"])
 
 		var cluster models.Cluster
-		json.NewDecoder(r.Body).Decode(&cluster)
+		if err := json.NewDecoder(r.Body).Decode(&cluster); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if cluster.Repository.IsZero() {
+			http.Error(w, "Repository reference is required", http.StatusBadRequest)
+			return
+		}
 
 		update := primitive.M{
 			"$set": cluster,
