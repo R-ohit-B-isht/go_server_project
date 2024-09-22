@@ -39,7 +39,7 @@ This project is a Go server with MongoDB integration, designed to handle operati
 ### Cluster
 
 - **Purpose**: Represents a cluster of pull requests.
-- **Fields**: `name`, `description`, `centroid`, `prs`, `scoreAverage`
+- **Fields**: `name`, `description`, `centroid`, `prs`, `scoreAverage`, `repository`
 - **Example Data**:
   ```json
   {
@@ -47,7 +47,8 @@ This project is a Go server with MongoDB integration, designed to handle operati
     "description": "Cluster of feature-related PRs",
     "centroid": {},
     "prs": ["60f004fdfe01cc4558a7d4a9"],
-    "scoreAverage": 0.85
+    "scoreAverage": 0.85,
+    "repository": "60f004fdfe01cc4558a7d4a9"
   }
   ```
 
