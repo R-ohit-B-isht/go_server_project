@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -18,11 +20,18 @@ import (
 var client *mongo.Client
 
 func main() {
+	// Set up file logging
+	logFile, err := os.OpenFile("pullrequest_collection.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal("Error opening log file:", err)
+	}
+	defer logFile.Close()
+	log.SetOutput(logFile)
+
 	// MongoDB connection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	clientOptions := options.Client().ApplyURI("mongodb+srv://mentor:mentor@cluster0.hpj3khd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-	var err error
 	client, err = mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.Fatal(err)
@@ -35,6 +44,9 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Println("Connected to MongoDB!")
+	log.Println("Server started successfully")
+	log.Println("Logging setup verified")
+	log.Println("Additional log statement to verify logging functionality")
 
 	// Initialize Bloom filter
 	models.InitPRBloomFilter(1000000, 0.01) // Capacity: 1 million, False Positive Rate: 1%
@@ -63,11 +75,20 @@ func main() {
 	routes.RegisterConfigurationRoutes(router, configurationCollection)
 	routes.RegisterBulkUploadRoutes(router, prCollection, repoCollection)
 
-	// Set up HTTP server
-	http.Handle("/", router)
+	// Set up CORS middleware
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Origin", "Content-Type", "X-Auth-Token", "Authorization"},
+		AllowCredentials: true,
+		Debug: true,
+	})
+
+	// Set up HTTP server with CORS middleware
+	handler := c.Handler(router)
 
 	fmt.Println("Server is starting on port 8080...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":8080", handler); err != nil {
 		fmt.Printf("Error starting server: %s\n", err)
 	}
 }

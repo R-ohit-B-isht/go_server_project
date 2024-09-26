@@ -17,7 +17,9 @@ type PullRequest struct {
 	Author             string             `bson:"author,omitempty"`
 	CreatedAt          time.Time          `bson:"createdAt,omitempty"`
 	LastUpdatedAt      time.Time          `bson:"lastUpdatedAt,omitempty"`
-	MergedAt           time.Time          `bson:"mergedAt,omitempty"`
+	ClosedAt           *time.Time         `bson:"closedAt,omitempty"`
+	MergedAt           *time.Time         `bson:"mergedAt,omitempty"`
+	State              string             `bson:"state,omitempty"`
 	Status             string             `bson:"status,omitempty"`
 	Labels             []string           `bson:"labels,omitempty"`
 	CustomTags         []string           `bson:"customTags,omitempty"`
