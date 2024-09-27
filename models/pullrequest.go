@@ -28,6 +28,16 @@ type PullRequest struct {
 	ConflictLikelihood float64            `bson:"conflictLikelihood,omitempty"`
 	SimilarityScore    float64            `bson:"similarityScore,omitempty"`
 	Cluster            primitive.ObjectID `bson:"cluster,omitempty"`
+	Comments           []Comment          `bson:"comments,omitempty"`
+}
+
+// Comment represents a comment on a pull request
+type Comment struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty"`
+	Author    string             `bson:"author,omitempty"`
+	Content   string             `bson:"content,omitempty"`
+	CreatedAt time.Time          `bson:"createdAt,omitempty"`
+	UpdatedAt time.Time          `bson:"updatedAt,omitempty"`
 }
 
 // PRBloomFilter is a Bloom filter for quick PR existence checks
@@ -36,6 +46,11 @@ var PRBloomFilter *bloom.BloomFilter
 // InitPRBloomFilter initializes the Bloom filter for PRs
 func InitPRBloomFilter(capacity uint, falsePositiveRate float64) {
 	PRBloomFilter = bloom.NewWithEstimates(capacity, falsePositiveRate)
+}
+
+// ClearPRBloomFilter clears the Bloom filter when the pullrequests collection is emptied
+func ClearPRBloomFilter() {
+	PRBloomFilter.ClearAll()
 }
 
 // AddToPRBloomFilter adds a PR ID to the Bloom filter

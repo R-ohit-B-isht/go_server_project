@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/go-github/v39/github"
@@ -97,6 +95,16 @@ func createPullRequest(collection *mongo.Collection, repoCollection *mongo.Colle
 		var pullRequest models.PullRequest
 		json.NewDecoder(r.Body).Decode(&pullRequest)
 
+		// Check if collection is empty and clear Bloom filter if needed
+		count, err := collection.CountDocuments(r.Context(), bson.M{})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if count == 0 {
+			models.ClearPRBloomFilter()
+		}
+
 		// Check if PR already exists in Bloom filter
 		if models.CheckPRBloomFilter(pullRequest.PRId) {
 			http.Error(w, "PR may already exist", http.StatusConflict)
@@ -114,13 +122,36 @@ func createPullRequest(collection *mongo.Collection, repoCollection *mongo.Colle
 
 		// Update the corresponding repository
 		prID := result.InsertedID.(primitive.ObjectID)
-		_, err = repoCollection.UpdateOne(
-			r.Context(),
-			bson.M{"_id": pullRequest.Repository},
-			bson.M{"$push": bson.M{"pullRequests": prID}},
-		)
+		var repo models.Repository
+		err = repoCollection.FindOne(r.Context(), bson.M{"_id": pullRequest.Repository}).Decode(&repo)
 		if err != nil {
-			log.Printf("Error updating repository: %v", err)
+			log.Printf("Error finding repository: %v", err)
+		} else {
+			err = repo.DeserializeBloomFilter()
+			if err != nil {
+				log.Printf("Error deserializing Bloom filter: %v", err)
+			}
+			_, err = repoCollection.UpdateOne(
+				r.Context(),
+				bson.M{"_id": pullRequest.Repository},
+				bson.M{"$push": bson.M{"pullRequests": prID}},
+			)
+			if err != nil {
+				log.Printf("Error updating repository: %v", err)
+			} else {
+				err = repo.SerializeBloomFilter()
+				if err != nil {
+					log.Printf("Error serializing Bloom filter: %v", err)
+				}
+				_, err = repoCollection.UpdateOne(
+					r.Context(),
+					bson.M{"_id": pullRequest.Repository},
+					bson.M{"$set": bson.M{"serializedBloom": repo.SerializedBloom}},
+				)
+				if err != nil {
+					log.Printf("Error updating serialized Bloom filter: %v", err)
+				}
+			}
 		}
 
 		json.NewEncoder(w).Encode(result)
@@ -222,8 +253,6 @@ func collectPullRequests(prCollection *mongo.Collection, repoCollection *mongo.C
 		fileLogger.Printf("Log file opened successfully at: %s", logFilePath)
 		log.Printf("Log file opened successfully at: %s", logFilePath)
 
-		fileLogger.Printf("collectPullRequests function entered")
-
 		var requestBody struct {
 			StartDate  string `json:"startDate"`
 			EndDate    string `json:"endDate"`
@@ -251,9 +280,7 @@ func collectPullRequests(prCollection *mongo.Collection, repoCollection *mongo.C
 		fileLogger.Printf("Repository ID: %s", objectID.Hex())
 
 		// Find the repository in the repo collection
-		var repo struct {
-			URL string `bson:"url"`
-		}
+		var repo models.Repository
 		err = repoCollection.FindOne(r.Context(), bson.M{"_id": objectID}).Decode(&repo)
 		if err != nil {
 			fileLogger.Printf("Repository not found: %v", err)
@@ -262,127 +289,223 @@ func collectPullRequests(prCollection *mongo.Collection, repoCollection *mongo.C
 		}
 		fileLogger.Printf("Repository found: %s", repo.URL)
 
-		// Set up GitHub API client
+		// Deserialize the Bloom filter
+		err = repo.DeserializeBloomFilter()
+		if err != nil {
+			fileLogger.Printf("Error deserializing Bloom filter: %v", err)
+			http.Error(w, "Error processing repository data", http.StatusInternalServerError)
+			return
+		}
+
+		// Initialize GitHub client
 		ctx := context.Background()
+		token := os.Getenv("GITHUB_TOKEN")
+		if token == "" {
+			fileLogger.Printf("GITHUB_TOKEN environment variable is not set")
+			http.Error(w, "GitHub token not configured", http.StatusInternalServerError)
+			return
+		}
 		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
+			&oauth2.Token{AccessToken: token},
 		)
 		tc := oauth2.NewClient(ctx, ts)
 		client := github.NewClient(tc)
-		fileLogger.Printf("GitHub API client set up")
 
 		// Parse repository URL to get owner and repo name
-		parsedURL, err := url.Parse(repo.URL)
-		if err != nil {
-			fileLogger.Printf("Invalid repository URL: %s", repo.URL)
-			http.Error(w, "Invalid repository URL", http.StatusInternalServerError)
-			return
-		}
-		parts := strings.Split(parsedURL.Path, "/")
-		owner, repoName := parts[1], parts[2]
-		fileLogger.Printf("Repository owner: %s, name: %s", owner, repoName)
+		// Hardcoded owner and repo name for MetaMask
+		owner, repoName := "MetaMask", "metamask-extension"
 
-		// Set up options for listing pull requests
-		opts := &github.PullRequestListOptions{
-			State: "all",
-			ListOptions: github.ListOptions{
-				PerPage: 100,
-			},
-		}
-
-		// Parse date range
+		// Parse date strings to time.Time
 		startDate, err := time.Parse(requestBody.DateFormat, requestBody.StartDate)
 		if err != nil {
 			fileLogger.Printf("Error parsing start date: %v", err)
-			http.Error(w, "Invalid start date", http.StatusBadRequest)
+			http.Error(w, "Invalid start date format", http.StatusBadRequest)
 			return
 		}
-		fileLogger.Printf("Parsed start date: %v", startDate)
-
 		endDate, err := time.Parse(requestBody.DateFormat, requestBody.EndDate)
 		if err != nil {
 			fileLogger.Printf("Error parsing end date: %v", err)
-			http.Error(w, "Invalid end date", http.StatusBadRequest)
+			http.Error(w, "Invalid end date format", http.StatusBadRequest)
 			return
 		}
-		fileLogger.Printf("Parsed end date: %v", endDate)
 
-		// Fetch pull requests
-		var allPRs []*github.PullRequest
+		// Construct the query
+		query := fmt.Sprintf("repo:%s/%s is:pr created:%s..%s", owner, repoName, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+		fileLogger.Printf("Constructed query: %s", query)
+
+		// Make the API request
+		opts := &github.SearchOptions{
+			ListOptions: github.ListOptions{PerPage: 100},
+			Sort:        "created",
+			Order:       "asc",
+		}
+		var allPRs []*github.Issue
 		for {
-			fileLogger.Printf("Fetching pull requests, page: %d", opts.Page)
-			prs, resp, err := client.PullRequests.List(ctx, owner, repoName, opts)
+			fileLogger.Printf("Making GitHub API request with page: %d", opts.Page)
+			result, resp, err := client.Search.Issues(ctx, query, opts)
 			if err != nil {
-				fileLogger.Printf("Error fetching pull requests: %v", err)
-				http.Error(w, fmt.Sprintf("Error fetching pull requests: %v", err), http.StatusInternalServerError)
+				fileLogger.Printf("Error searching issues: %v", err)
+				if ghErr, ok := err.(*github.ErrorResponse); ok {
+					fileLogger.Printf("GitHub API Error: %+v", ghErr)
+					fileLogger.Printf("Response Body: %s", ghErr.Response.Body)
+					fileLogger.Printf("Response Headers: %+v", ghErr.Response.Header)
+					fileLogger.Printf("Response Status: %s", ghErr.Response.Status)
+				}
+				fileLogger.Printf("Query: %s", query)
+				fileLogger.Printf("Response: %+v", resp)
+				fileLogger.Printf("Full error details: %+v", err)
+				http.Error(w, fmt.Sprintf("Error fetching pull requests from GitHub: %v", err), http.StatusInternalServerError)
 				return
 			}
-			fileLogger.Printf("Fetched %d pull requests", len(prs))
-			for _, pr := range prs {
-				if pr.CreatedAt.After(startDate) && pr.CreatedAt.Before(endDate) {
-					allPRs = append(allPRs, pr)
-				}
-			}
-			fileLogger.Printf("Total pull requests within date range: %d", len(allPRs))
+			fileLogger.Printf("Received %d pull requests from GitHub API", len(result.Issues))
+			allPRs = append(allPRs, result.Issues...)
 			if resp.NextPage == 0 {
+				fileLogger.Printf("No more pages to fetch")
 				break
 			}
 			opts.Page = resp.NextPage
+			fileLogger.Printf("Moving to next page: %d", opts.Page)
 		}
 
-		// Process and store pull requests
+		fileLogger.Printf("Total pull requests fetched: %d", len(allPRs))
+
+		// Process and store the pull requests
 		for _, pr := range allPRs {
-			fileLogger.Printf("Processing PR: %+v", pr)
-			fileLogger.Printf("GitHub API response for pr.Number: %v", pr.Number)
-			fileLogger.Printf("GitHub API response for pr.Title: %v", pr.Title)
-			fileLogger.Printf("GitHub API response for pr.State: %v", pr.State)
-			fileLogger.Printf("GitHub API response for pr.CreatedAt: %v", pr.CreatedAt)
-			fileLogger.Printf("GitHub API response for pr.ClosedAt: %v", pr.ClosedAt)
-			fileLogger.Printf("GitHub API response for pr.MergedAt: %v", pr.MergedAt)
-			prId := ""
-			if pr.Number != nil {
-				prId = strconv.Itoa(*pr.Number)
-				fileLogger.Printf("Assigned prId: %s", prId)
-			} else {
-				fileLogger.Printf("Warning: pr.Number is nil for PR with title: %s", *pr.Title)
-			}
+			fileLogger.Printf("Processing pull request: %d", *pr.Number)
 			pullRequest := models.PullRequest{
-				PRId:       prId,
-				Title:      *pr.Title,
-				CreatedAt:  time.Time{},
-				ClosedAt:   nil,
-				MergedAt:   nil,
-				State:      *pr.State,
 				Repository: objectID,
+				Labels:     make([]string, len(pr.Labels)),
 			}
+
+			if pr.Number != nil {
+				pullRequest.PRId = strconv.Itoa(*pr.Number)
+				fileLogger.Printf("Processing PR %s: %+v", pullRequest.PRId, pr)
+			} else {
+				fileLogger.Printf("Warning: PR Number is nil")
+				continue
+			}
+
+			if pr.Title != nil {
+				pullRequest.Title = *pr.Title
+			} else {
+				fileLogger.Printf("Warning: PR Title is nil for PR %s", pullRequest.PRId)
+			}
+
+			if pr.Body != nil {
+				pullRequest.Description = *pr.Body
+			} else {
+				fileLogger.Printf("Warning: PR Body is nil for PR %s", pullRequest.PRId)
+			}
+
+			if pr.User != nil && pr.User.Login != nil {
+				pullRequest.Author = *pr.User.Login
+			} else {
+				fileLogger.Printf("Warning: PR User or Login is nil for PR %s", pullRequest.PRId)
+			}
+
 			if pr.CreatedAt != nil {
 				pullRequest.CreatedAt = *pr.CreatedAt
+			} else {
+				fileLogger.Printf("Warning: PR CreatedAt is nil for PR %s", pullRequest.PRId)
 			}
+
+			if pr.UpdatedAt != nil {
+				pullRequest.LastUpdatedAt = *pr.UpdatedAt
+			} else {
+				fileLogger.Printf("Warning: PR UpdatedAt is nil for PR %s", pullRequest.PRId)
+			}
+
+			if pr.State != nil {
+				pullRequest.State = *pr.State
+			} else {
+				fileLogger.Printf("Warning: PR State is nil for PR %s", pullRequest.PRId)
+			}
+
+			for i, label := range pr.Labels {
+				if label.Name != nil {
+					pullRequest.Labels[i] = *label.Name
+				} else {
+					fileLogger.Printf("Warning: Label Name is nil for PR %s", pullRequest.PRId)
+				}
+			}
+
 			if pr.ClosedAt != nil {
 				pullRequest.ClosedAt = pr.ClosedAt
 			}
-			if pr.MergedAt != nil {
-				pullRequest.MergedAt = pr.MergedAt
+
+			if pr.State != nil && *pr.State == "closed" {
+				pullRequest.MergedAt = pr.ClosedAt
 			}
 
-			if pullRequest.PRId == "" {
-				fileLogger.Printf("Warning: PRId is null or empty for pull request %s. Skipping insertion.", pullRequest.Title)
+			// Fetch comments for the pull request
+			if pr.Number != nil {
+				comments, _, err := client.Issues.ListComments(ctx, owner, repoName, *pr.Number, nil)
+				if err != nil {
+					fileLogger.Printf("Error fetching comments for PR %s: %v", pullRequest.PRId, err)
+				} else {
+					for _, comment := range comments {
+						if comment.User != nil && comment.User.Login != nil &&
+							comment.Body != nil && comment.CreatedAt != nil && comment.UpdatedAt != nil {
+							pullRequest.Comments = append(pullRequest.Comments, models.Comment{
+								Author:    *comment.User.Login,
+								Content:   *comment.Body,
+								CreatedAt: *comment.CreatedAt,
+								UpdatedAt: *comment.UpdatedAt,
+							})
+						} else {
+							fileLogger.Printf("Warning: Comment data is incomplete for PR %s", pullRequest.PRId)
+						}
+					}
+				}
+			}
+
+			// Add PR to Bloom filter
+			repo.AddToPRBloomFilter(pullRequest.PRId)
+
+			opts := options.Update().SetUpsert(true)
+			filter := bson.M{"prId": pullRequest.PRId}
+			update := bson.M{"$set": pullRequest}
+			fileLogger.Printf("Upserting PR %s with filter: %+v and update: %+v", pullRequest.PRId, filter, update)
+			_, err := prCollection.UpdateOne(ctx, filter, update, opts)
+			if err != nil {
+				fileLogger.Printf("Error upserting pull request: %v", err)
 				continue
 			}
-			_, err := prCollection.InsertOne(ctx, pullRequest)
+			fileLogger.Printf("Upserted pull request: %s", pullRequest.PRId)
+
+			// Update the repository's pullRequests array
+			_, err = repoCollection.UpdateOne(
+				ctx,
+				bson.M{"_id": objectID},
+				bson.M{"$addToSet": bson.M{"pullRequests": pullRequest.PRId}},
+			)
 			if err != nil {
-				if mongo.IsDuplicateKeyError(err) {
-					fileLogger.Printf("Duplicate key error for PRId %s: %v", pullRequest.PRId, err)
-				} else {
-					fileLogger.Printf("Error inserting pull request: %v", err)
-				}
+				fileLogger.Printf("Error updating repository's pullRequests array: %v", err)
 			} else {
-				fileLogger.Printf("Successfully inserted pull request with PRId: %s", pullRequest.PRId)
+				fileLogger.Printf("Successfully updated repository's pullRequests array")
 			}
 		}
 
+		// Serialize the Bloom filter
+		err = repo.SerializeBloomFilter()
+		if err != nil {
+			fileLogger.Printf("Error serializing Bloom filter: %v", err)
+		}
+
+		// Update the repository document with the serialized Bloom filter
+		_, err = repoCollection.UpdateOne(
+			ctx,
+			bson.M{"_id": objectID},
+			bson.M{"$set": bson.M{"serializedBloom": repo.SerializedBloom}},
+		)
+		if err != nil {
+			fileLogger.Printf("Error updating repository's Bloom filter: %v", err)
+		} else {
+			fileLogger.Printf("Successfully updated repository's Bloom filter")
+		}
+
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]int{"collected": len(allPRs)})
+		json.NewEncoder(w).Encode(map[string]string{"message": fmt.Sprintf("Successfully collected %d pull requests", len(allPRs))})
 	}
 }
 
