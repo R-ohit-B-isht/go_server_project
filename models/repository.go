@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/gob"
 	"bytes"
+	"fmt"
 	"time"
 
 	"github.com/willf/bloom"
@@ -21,9 +22,13 @@ type Repository struct {
 }
 
 // InitBloomFilter initializes the Bloom filter for the repository
-func (r *Repository) InitBloomFilter(capacity uint, falsePositiveRate float64) {
+func (r *Repository) InitBloomFilter(capacity uint, falsePositiveRate float64) error {
 	r.BloomFilter = bloom.NewWithEstimates(capacity, falsePositiveRate)
-	r.SerializeBloomFilter()
+	err := r.SerializeBloomFilter()
+	if err != nil {
+		return fmt.Errorf("failed to serialize bloom filter: %v", err)
+	}
+	return nil
 }
 
 // AddToPRBloomFilter adds a PR ID to the repository's Bloom filter
@@ -52,6 +57,9 @@ func (r *Repository) ClearPRBloomFilter() {
 
 // SerializeBloomFilter serializes the Bloom filter to be stored in the database
 func (r *Repository) SerializeBloomFilter() error {
+	if r.BloomFilter == nil {
+		return nil // Return without error if BloomFilter is nil
+	}
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	err := enc.Encode(r.BloomFilter)

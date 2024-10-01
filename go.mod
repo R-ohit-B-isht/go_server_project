@@ -7,6 +7,7 @@ require (
 	github.com/google/go-github/v39 v39.2.0
 	github.com/gorilla/mux v1.8.1
 	github.com/rs/cors v1.11.1
+	github.com/willf/bloom v2.0.3+incompatible
 	go.mongodb.org/mongo-driver v1.17.0
 	golang.org/x/oauth2 v0.23.0
 )
@@ -19,7 +20,6 @@ require (
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/willf/bitset v1.1.11 // indirect
-	github.com/willf/bloom v2.0.3+incompatible // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

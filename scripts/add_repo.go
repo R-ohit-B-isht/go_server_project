@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -34,6 +35,10 @@ func main() {
 	repo := bson.M{
 		"name": "MetaMask",
 		"url":  "https://github.com/MetaMask/metamask-extension.git",
+		"pullRequests": []primitive.ObjectID{
+			primitive.NewObjectID(),
+			primitive.NewObjectID(),
+		},
 	}
 
 	// Insert the repository into the collection
@@ -43,4 +48,22 @@ func main() {
 	}
 
 	fmt.Printf("Inserted repository with ID: %v\n", result.InsertedID)
+
+	// Update the repository to ensure pullRequests are stored as ObjectIDs
+	filter := bson.M{"_id": result.InsertedID}
+	update := bson.M{
+		"$set": bson.M{
+			"pullRequests": []primitive.ObjectID{
+				primitive.NewObjectID(),
+				primitive.NewObjectID(),
+			},
+		},
+	}
+
+	_, err = collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Updated repository with ObjectIDs for pullRequests")
 }

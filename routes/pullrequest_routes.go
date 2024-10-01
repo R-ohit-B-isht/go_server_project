@@ -106,7 +106,12 @@ func createPullRequest(collection *mongo.Collection, repoCollection *mongo.Colle
 		}
 
 		// Check if PR already exists in Bloom filter
-		if models.CheckPRBloomFilter(pullRequest.PRId) {
+		repo, err := getRepositoryByID(repoCollection, pullRequest.Repository)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if repo.CheckPRBloomFilter(pullRequest.PRId) {
 			http.Error(w, "PR may already exist", http.StatusConflict)
 			return
 		}
@@ -117,17 +122,28 @@ func createPullRequest(collection *mongo.Collection, repoCollection *mongo.Colle
 			return
 		}
 
+		// Update repository's bloom filter
+		repo, err = getRepositoryByID(repoCollection, pullRequest.Repository)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		// Add PR to Bloom filter
-		models.AddToPRBloomFilter(pullRequest.PRId)
+		repo.AddToPRBloomFilter(pullRequest.PRId)
+		// Update repository in database with new bloom filter
+		if err := updateRepositoryBloomFilter(repoCollection, repo); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		// Update the corresponding repository
 		prID := result.InsertedID.(primitive.ObjectID)
-		var repo models.Repository
-		err = repoCollection.FindOne(r.Context(), bson.M{"_id": pullRequest.Repository}).Decode(&repo)
+		updatedRepo, err := getRepositoryByID(repoCollection, pullRequest.Repository)
 		if err != nil {
 			log.Printf("Error finding repository: %v", err)
 		} else {
-			err = repo.DeserializeBloomFilter()
+			err = updatedRepo.DeserializeBloomFilter()
 			if err != nil {
 				log.Printf("Error deserializing Bloom filter: %v", err)
 			}
@@ -156,6 +172,28 @@ func createPullRequest(collection *mongo.Collection, repoCollection *mongo.Colle
 
 		json.NewEncoder(w).Encode(result)
 	}
+}
+
+func getRepositoryByID(repoCollection *mongo.Collection, repoID primitive.ObjectID) (*models.Repository, error) {
+	var repo models.Repository
+	err := repoCollection.FindOne(context.Background(), bson.M{"_id": repoID}).Decode(&repo)
+	if err != nil {
+		return nil, err
+	}
+	return &repo, nil
+}
+
+func updateRepositoryBloomFilter(repoCollection *mongo.Collection, repo *models.Repository) error {
+	err := repo.SerializeBloomFilter()
+	if err != nil {
+		return err
+	}
+	_, err = repoCollection.UpdateOne(
+		context.Background(),
+		bson.M{"_id": repo.ID},
+		bson.M{"$set": bson.M{"serializedBloom": repo.SerializedBloom}},
+	)
+	return err
 }
 
 func getAllPullRequests(collection *mongo.Collection) http.HandlerFunc {
@@ -277,13 +315,24 @@ func collectPullRequests(prCollection *mongo.Collection, repoCollection *mongo.C
 			http.Error(w, "Invalid repository ID", http.StatusBadRequest)
 			return
 		}
-		fileLogger.Printf("Repository ID: %s", objectID.Hex())
+		fileLogger.Printf("Repository ID (hex): %s", objectID.Hex())
+		fileLogger.Printf("Repository ID (string): %s", repoID)
 
 		// Find the repository in the repo collection
 		var repo models.Repository
-		err = repoCollection.FindOne(r.Context(), bson.M{"_id": objectID}).Decode(&repo)
+		filter := bson.M{"_id": objectID}
+		fileLogger.Printf("Querying database with filter: %+v", filter)
+		err = repoCollection.FindOne(r.Context(), filter).Decode(&repo)
 		if err != nil {
 			fileLogger.Printf("Repository not found: %v", err)
+			fileLogger.Printf("Query result: %+v", repo)
+			// Log all repository IDs in the collection
+			cursor, _ := repoCollection.Find(r.Context(), bson.M{})
+			var repos []models.Repository
+			cursor.All(r.Context(), &repos)
+			for _, r := range repos {
+				fileLogger.Printf("Existing repository ID: %s", r.ID.Hex())
+			}
 			http.Error(w, "Repository not found", http.StatusNotFound)
 			return
 		}
@@ -293,8 +342,14 @@ func collectPullRequests(prCollection *mongo.Collection, repoCollection *mongo.C
 		err = repo.DeserializeBloomFilter()
 		if err != nil {
 			fileLogger.Printf("Error deserializing Bloom filter: %v", err)
-			http.Error(w, "Error processing repository data", http.StatusInternalServerError)
-			return
+			// Initialize a new Bloom filter if deserialization fails
+			repo.InitBloomFilter(1000, 0.01) // Adjust capacity and false positive rate as needed
+			err = repo.SerializeBloomFilter()
+			if err != nil {
+				fileLogger.Printf("Error initializing and serializing new Bloom filter: %v", err)
+				http.Error(w, "Error processing repository data", http.StatusInternalServerError)
+				return
+			}
 		}
 
 		// Initialize GitHub client
@@ -464,44 +519,61 @@ func collectPullRequests(prCollection *mongo.Collection, repoCollection *mongo.C
 
 			opts := options.Update().SetUpsert(true)
 			filter := bson.M{"prId": pullRequest.PRId}
-			update := bson.M{"$set": pullRequest}
+			update := bson.M{
+				"$set":         pullRequest,
+				"$setOnInsert": bson.M{"_id": primitive.NewObjectID()},
+			}
 			fileLogger.Printf("Upserting PR %s with filter: %+v and update: %+v", pullRequest.PRId, filter, update)
-			_, err := prCollection.UpdateOne(ctx, filter, update, opts)
+			result, err := prCollection.UpdateOne(ctx, filter, update, opts)
 			if err != nil {
 				fileLogger.Printf("Error upserting pull request: %v", err)
 				continue
 			}
 			fileLogger.Printf("Upserted pull request: %s", pullRequest.PRId)
 
-			// Update the repository's pullRequests array
+			var prObjectID primitive.ObjectID
+			if result.UpsertedID != nil {
+				prObjectID = result.UpsertedID.(primitive.ObjectID)
+			} else {
+				// If not upserted, fetch the existing document to get its ID
+				var existingPR models.PullRequest
+				err = prCollection.FindOne(ctx, filter).Decode(&existingPR)
+				if err != nil {
+					fileLogger.Printf("Error fetching existing pull request: %v", err)
+					continue
+				}
+				prObjectID = existingPR.ID
+			}
+
+			fileLogger.Printf("Inserting/Updating ObjectID %s into repository's pullRequests array", prObjectID.Hex())
 			_, err = repoCollection.UpdateOne(
 				ctx,
 				bson.M{"_id": objectID},
-				bson.M{"$addToSet": bson.M{"pullRequests": pullRequest.PRId}},
+				bson.M{"$addToSet": bson.M{"pullRequests": prObjectID}},
 			)
 			if err != nil {
 				fileLogger.Printf("Error updating repository's pullRequests array: %v", err)
 			} else {
-				fileLogger.Printf("Successfully updated repository's pullRequests array")
+				fileLogger.Printf("Successfully updated repository's pullRequests array with ObjectID %s", prObjectID.Hex())
 			}
 		}
 
-		// Serialize the Bloom filter
+		// Serialize the Bloom filter after all push operations
 		err = repo.SerializeBloomFilter()
 		if err != nil {
 			fileLogger.Printf("Error serializing Bloom filter: %v", err)
-		}
-
-		// Update the repository document with the serialized Bloom filter
-		_, err = repoCollection.UpdateOne(
-			ctx,
-			bson.M{"_id": objectID},
-			bson.M{"$set": bson.M{"serializedBloom": repo.SerializedBloom}},
-		)
-		if err != nil {
-			fileLogger.Printf("Error updating repository's Bloom filter: %v", err)
 		} else {
-			fileLogger.Printf("Successfully updated repository's Bloom filter")
+			// Update the repository document with the serialized Bloom filter
+			_, err = repoCollection.UpdateOne(
+				ctx,
+				bson.M{"_id": objectID},
+				bson.M{"$set": bson.M{"serializedBloom": repo.SerializedBloom}},
+			)
+			if err != nil {
+				fileLogger.Printf("Error updating repository's Bloom filter: %v", err)
+			} else {
+				fileLogger.Printf("Successfully updated repository's Bloom filter")
+			}
 		}
 
 		w.WriteHeader(http.StatusOK)
