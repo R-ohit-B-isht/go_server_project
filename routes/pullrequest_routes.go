@@ -18,6 +18,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"go_server_project/models"
+	"go_server_project/streams"
 	"os"
 )
 
@@ -33,11 +34,158 @@ func RegisterPullRequestRoutes(router *mux.Router, prCollection *mongo.Collectio
 	}
 
 	router.HandleFunc("/pullrequests", createPullRequest(prCollection, repoCollection)).Methods("POST")
-	router.HandleFunc("/pullrequests/collect", collectPullRequests(prCollection, repoCollection)).Methods("POST")
+	router.HandleFunc("/pullrequests-collect", collectPullRequests(prCollection, repoCollection)).Methods("POST")
 	router.HandleFunc("/pullrequests", getPaginatedPullRequests(prCollection)).Methods("GET")
 	router.HandleFunc("/pullrequests/{id}", getPullRequest(prCollection)).Methods("GET")
 	router.HandleFunc("/pullrequests/{id}", updatePullRequest(prCollection)).Methods("PUT")
 	router.HandleFunc("/pullrequests/{id}", deletePullRequest(prCollection)).Methods("DELETE")
+	router.HandleFunc("/pullrequests-search", fullTextPullRequestsSearch(prCollection, repoCollection)).Methods("POST")
+	router.HandleFunc("/pullrequests-sync", syncPullRequests()).Methods("POST")
+	router.HandleFunc("/pullrequests-syncLevel", getCurrentRepoSyncLevel(prCollection, repoCollection)).Methods("GET")
+}
+
+func syncPullRequests() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		go streams.Synchroniser()
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Synchronization started"})
+	}
+}
+
+func getCurrentRepoSyncLevel(prCollection *mongo.Collection, repoCollection *mongo.Collection) http.HandlerFunc {
+	// return the number of PRs for a particular repository with repository as mongo id in the get request field that have embeddings field vs the total number of PRs you'd be given a get request like this  'http://localhost:8080/pullrequests-syncLevel?id=66f70e56d5c8e3c9d8d91252'
+	return func(w http.ResponseWriter, r *http.Request) {
+		// return a json object with the total number of PRs and the number of PRs with embeddings for now just return 1,2 for total and embeddings respectively
+
+
+		log.Println("getCurrentRepoSyncLevel function called")
+		repoID := r.URL.Query().Get("id")
+		log.Printf("Received repoID: %s", repoID)
+
+		objectID, err := primitive.ObjectIDFromHex(repoID)
+		if err != nil {
+			log.Printf("Error converting repoID to ObjectID: %v", err)
+			http.Error(w, "Invalid repository ID", http.StatusBadRequest)
+			return
+		}
+
+		filter := bson.M{"repository": objectID}
+		log.Printf("Total PRs filter: %+v", filter)
+		totalPRs, err := prCollection.CountDocuments(r.Context(), filter)
+		if err != nil {
+			log.Printf("Error counting total PRs: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Total PRs count: %d", totalPRs)
+
+		embeddingsFilter := bson.M{"repository": objectID, "embedding": bson.M{"$exists": true}}
+		log.Printf("Embeddings filter: %+v", embeddingsFilter)
+		embeddingsPRs, err := prCollection.CountDocuments(r.Context(), embeddingsFilter)
+		if err != nil {
+			log.Printf("Error counting PRs with embeddings: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		log.Printf("PRs with embeddings count: %d", embeddingsPRs)
+
+		// Fetch a sample document to verify structure
+		sampleDoc := bson.M{}
+		err = prCollection.FindOne(r.Context(), filter).Decode(&sampleDoc)
+		if err != nil {
+			log.Printf("Error fetching sample document: %v", err)
+		} else {
+			log.Printf("Sample document structure: %+v", sampleDoc)
+		}
+
+		response := struct {
+			TotalPRs      int64 `json:"totalPRs"`
+			EmbeddingsPRs int64 `json:"embeddingsPRs"`
+		}{
+			TotalPRs:      totalPRs,
+			EmbeddingsPRs: embeddingsPRs,
+		}
+
+		log.Printf("Total PRs: %d, PRs with embeddings: %d", totalPRs, embeddingsPRs)
+		log.Printf("Response struct: %+v", response)
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			log.Printf("Error encoding response: %v", err)
+			http.Error(w, "Error encoding response", http.StatusInternalServerError)
+			return
+		}
+		log.Println("Response sent successfully")
+	}
+}
+
+func fullTextPullRequestsSearch(prCollection *mongo.Collection, repoCollection *mongo.Collection) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var searchRequest struct {
+			SearchText string `json:"searchText"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&searchRequest); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		repoID := r.URL.Query().Get("id")
+		objectID, err := primitive.ObjectIDFromHex(repoID)
+		if err != nil {
+			http.Error(w, "Invalid repository ID", http.StatusBadRequest)
+			return
+		}
+
+		pipeline := mongo.Pipeline{
+			bson.D{{Key: "$search", Value: bson.M{
+				"index": "PullRequestsTextSearch",
+				"text": bson.M{
+					"query": searchRequest.SearchText,
+					"path":  bson.M{"wildcard": "*"},
+				},
+			}}},
+			bson.D{{Key: "$match", Value: bson.M{"repository": objectID}}},
+		}
+		log.Printf("Search pipeline: %+v", pipeline)
+		log.Printf("Search text: %s", searchRequest.SearchText)
+		log.Printf("Repository ID: %s", objectID.Hex())
+
+		cursor, err := prCollection.Aggregate(r.Context(), pipeline)
+		if err != nil {
+			log.Printf("Error executing search: %v", err)
+			http.Error(w, "Failed to execute search", http.StatusInternalServerError)
+			return
+		}
+		defer cursor.Close(r.Context())
+
+		var pullRequests []models.PullRequest
+		if err = cursor.All(r.Context(), &pullRequests); err != nil {
+			log.Printf("Error decoding search results: %v", err)
+			http.Error(w, "Failed to decode search results", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Search returned %d results", len(pullRequests))
+
+		if len(pullRequests) == 0 {
+			log.Printf("No results found")
+			http.Error(w, "No results found", http.StatusNotFound)
+			return
+		}
+
+		response := struct {
+			Success   bool                  `json:"success"`
+			Count     int                   `json:"count"`
+			Documents []models.PullRequest `json:"documents"`
+		}{
+			Success:   true,
+			Count:     len(pullRequests),
+			Documents: pullRequests,
+		}
+
+		log.Printf("Response: %+v", response)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}
 }
 
 func getPaginatedPullRequests(collection *mongo.Collection) http.HandlerFunc {

@@ -141,7 +141,7 @@ This document provides an overview of the models and routes in the Go server pro
     - `totalCount`: The total number of pull requests available for the specified date range.
   - **Example**:
     ```bash
-    curl -X POST 'http://localhost:8080/pullrequests/collect?id=selectedRepo' \
+    curl -X POST 'http://localhost:8080/pullrequests-collect?id=selectedRepo' \
     -H 'Content-Type: application/json' \
     -d '{
       "startDate": "2020-01-01",

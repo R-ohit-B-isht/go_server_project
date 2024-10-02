@@ -9,26 +9,26 @@ import (
 
 // PullRequest represents the schema for a pull request
 type PullRequest struct {
-	ID                 primitive.ObjectID `bson:"_id,omitempty"`
-	PRId               string             `bson:"prId,omitempty"`
-	Repository         primitive.ObjectID `bson:"repository,omitempty"`
-	Title              string             `bson:"title,omitempty"`
-	Description        string             `bson:"description,omitempty"`
-	Author             string             `bson:"author,omitempty"`
-	CreatedAt          time.Time          `bson:"createdAt,omitempty"`
-	LastUpdatedAt      time.Time          `bson:"lastUpdatedAt,omitempty"`
-	ClosedAt           *time.Time         `bson:"closedAt,omitempty"`
-	MergedAt           *time.Time         `bson:"mergedAt,omitempty"`
-	State              string             `bson:"state,omitempty"`
-	Status             string             `bson:"status,omitempty"`
-	Labels             []string           `bson:"labels,omitempty"`
-	CustomTags         []string           `bson:"customTags,omitempty"`
-	Complexity         float64            `bson:"complexity,omitempty"`
-	TimeToMerge        float64            `bson:"timeToMerge,omitempty"`
-	ConflictLikelihood float64            `bson:"conflictLikelihood,omitempty"`
-	SimilarityScore    float64            `bson:"similarityScore,omitempty"`
-	Cluster            primitive.ObjectID `bson:"cluster,omitempty"`
-	Comments           []Comment          `bson:"comments,omitempty"`
+	ID                 primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	PRId               string             `bson:"prId,omitempty" json:"prId,omitempty"`
+	Repository         primitive.ObjectID `bson:"repository,omitempty" json:"repository,omitempty"`
+	Title              string             `bson:"title,omitempty" json:"title,omitempty"`
+	Description        string             `bson:"description,omitempty" json:"description,omitempty"`
+	Author             string             `bson:"author,omitempty" json:"author,omitempty"`
+	CreatedAt          time.Time          `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
+	LastUpdatedAt      time.Time          `bson:"lastUpdatedAt,omitempty" json:"lastUpdatedAt,omitempty"`
+	ClosedAt           *time.Time         `bson:"closedAt,omitempty" json:"closedAt,omitempty"`
+	MergedAt           *time.Time         `bson:"mergedAt,omitempty" json:"mergedAt,omitempty"`
+	State              string             `bson:"state,omitempty" json:"state,omitempty"`
+	Status             string             `bson:"status,omitempty" json:"status,omitempty"`
+	Labels             []string           `bson:"labels,omitempty" json:"labels,omitempty"`
+	CustomTags         []string           `bson:"customTags,omitempty" json:"customTags,omitempty"`
+	Complexity         float64            `bson:"complexity,omitempty" json:"complexity,omitempty"`
+	TimeToMerge        float64            `bson:"timeToMerge,omitempty" json:"timeToMerge,omitempty"`
+	ConflictLikelihood float64            `bson:"conflictLikelihood,omitempty" json:"conflictLikelihood,omitempty"`
+	SimilarityScore    float64            `bson:"similarityScore,omitempty" json:"similarityScore,omitempty"`
+	Cluster            primitive.ObjectID `bson:"cluster,omitempty" json:"cluster,omitempty"`
+	Comments           []Comment          `bson:"comments,omitempty" json:"comments,omitempty"`
 }
 
 // Comment represents a comment on a pull request

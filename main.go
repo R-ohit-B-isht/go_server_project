@@ -15,6 +15,8 @@ import (
 
 	"go_server_project/models"
 	"go_server_project/routes"
+	"go_server_project/streams"
+	"go_server_project/index"
 )
 
 var client *mongo.Client
@@ -47,6 +49,15 @@ func main() {
 	log.Println("Server started successfully")
 	log.Println("Logging setup verified")
 	log.Println("Additional log statement to verify logging functionality")
+
+	// Create PullRequestsTextSearch index if it does not exist
+	index.CreatePullRequestsTextSearchIndex(client)
+
+	// Create vectorSearch index if it does not exist
+    index.CreateVectorSearchIndex(client)
+	
+	// Start MongoDB change stream
+	go streams.StartMongoStream()
 
 	// Initialize Bloom filter
 	models.InitPRBloomFilter(1000000, 0.01) // Capacity: 1 million, False Positive Rate: 1%

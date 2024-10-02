@@ -1,0 +1,18 @@
+# fill git ignore with all the files and directories generally not needed in a go project
+# for example:
+.idea
+*.iml
+*.log
+*.out
+*.test
+*.prof
+*.pprof
+*.cover
+*.coverprofile
+*.cprof
+
+# ignore bin directory
+bin/
+
+.env
+
