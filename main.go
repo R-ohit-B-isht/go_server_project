@@ -55,7 +55,7 @@ func main() {
 
 	// Create vectorSearch index if it does not exist
     index.CreateVectorSearchIndex(client)
-	
+
 	// Start MongoDB change stream
 	go streams.StartMongoStream()
 
@@ -88,7 +88,7 @@ func main() {
 
 	// Set up CORS middleware
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"http://localhost:3000", "http://localhost:8080"},
+		AllowedOrigins: []string{"https://pr-analyzer-frontend-production.up.railway.app","http://localhost:3000", "http://localhost:8080"},
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"Origin", "Content-Type", "X-Auth-Token", "Authorization"},
 		AllowCredentials: true,
