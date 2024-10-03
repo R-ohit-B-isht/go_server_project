@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/oauth2"
+	"strings"
 
 	"go_server_project/models"
 	"go_server_project/streams"
@@ -40,8 +42,181 @@ func RegisterPullRequestRoutes(router *mux.Router, prCollection *mongo.Collectio
 	router.HandleFunc("/pullrequests/{id}", updatePullRequest(prCollection)).Methods("PUT")
 	router.HandleFunc("/pullrequests/{id}", deletePullRequest(prCollection)).Methods("DELETE")
 	router.HandleFunc("/pullrequests-search", fullTextPullRequestsSearch(prCollection, repoCollection)).Methods("POST")
+	router.HandleFunc("/pullrequests-semantic-search", semanticPullRequestsSearch(prCollection, repoCollection)).Methods("POST")
 	router.HandleFunc("/pullrequests-sync", syncPullRequests()).Methods("POST")
 	router.HandleFunc("/pullrequests-syncLevel", getCurrentRepoSyncLevel(prCollection, repoCollection)).Methods("GET")
+}
+
+func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *mongo.Collection) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Starting semanticPullRequestsSearch function")
+		defer log.Println("Ending semanticPullRequestsSearch function")
+
+		var searchRequest struct {
+			SearchText string `json:"searchText"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&searchRequest); err != nil {
+			log.Printf("Error decoding request body: %v", err)
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		log.Printf("Received search request: %+v", searchRequest)
+
+		repoID := r.URL.Query().Get("id")
+		log.Printf("Repository ID: %s", repoID)
+		objectID, err := primitive.ObjectIDFromHex(repoID)
+		if err != nil {
+			log.Printf("Error converting repository ID: %v", err)
+			http.Error(w, "Invalid repository ID", http.StatusBadRequest)
+			return
+		}
+		log.Printf("Converted repository ID to ObjectID: %s", objectID.Hex())
+
+		// Generate embeddings using OpenAI API
+		log.Println("Generating embeddings using OpenAI API")
+		client := &http.Client{}
+		// Include both searchText, title, and description in the embedding request
+		requestBody := fmt.Sprintf(`{"input": ["%s", "title", "description"], "model": "text-embedding-ada-002"}`, searchRequest.SearchText)
+		log.Printf("OpenAI API Request Body: %s", requestBody)
+		req, err := http.NewRequest("POST", "https://api.openai.com/v1/embeddings", strings.NewReader(requestBody))
+		if err != nil {
+			log.Printf("Error creating request: %v", err)
+			http.Error(w, "Failed to create request", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		apiKey := os.Getenv("OPENAI_API_KEY")
+		if apiKey == "" {
+			log.Println("OPENAI_API_KEY is not set")
+			http.Error(w, "OpenAI API key is not configured", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		log.Println("Sending request to OpenAI API")
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("Error sending request to OpenAI API: %v", err)
+			http.Error(w, "Failed to generate embeddings", http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+		log.Printf("OpenAI API Response Status: %d", resp.StatusCode)
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Error reading response body: %v", err)
+			http.Error(w, "Failed to read response body", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("OpenAI API Response Body: %s", string(bodyBytes))
+
+		var embeddingResponse struct {
+			Data []struct {
+				Embedding []float64 `json:"embedding"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(bodyBytes, &embeddingResponse); err != nil {
+			log.Printf("Error decoding embedding response: %v", err)
+			http.Error(w, "Failed to decode embedding response", http.StatusInternalServerError)
+			return
+		}
+		log.Println("Successfully decoded embedding response")
+		log.Printf("Embedding response structure: %+v", embeddingResponse)
+
+		if len(embeddingResponse.Data) == 0 {
+			log.Println("Error: Embedding response data is empty")
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "Failed to generate embeddings",
+				"documents": []interface{}{},
+			})
+			return
+		}
+
+		log.Printf("Number of embedding data entries: %d", len(embeddingResponse.Data))
+		log.Printf("First embedding data entry: %+v", embeddingResponse.Data[0])
+		log.Printf("Embedding type: %T, length: %d", embeddingResponse.Data[0].Embedding, len(embeddingResponse.Data[0].Embedding))
+
+		queryVector := embeddingResponse.Data[0].Embedding
+		log.Printf("Generated embedding vector with %d dimensions", len(queryVector))
+
+		// Define the pipeline for vector search
+		pipeline := mongo.Pipeline{
+			{{Key: "$search", Value: bson.M{
+				"index": "vectorSearch",
+				"knnBeta": bson.M{
+					"vector": queryVector,
+					"path": "embedding",
+					"k": 100,
+				},
+			}}},
+			{{Key: "$match", Value: bson.M{"repository": objectID}}},
+			{{Key: "$addFields", Value: bson.M{
+				"score": bson.M{"$meta": "searchScore"},
+			}}},
+			{{Key: "$limit", Value: 10}}, // Add limit stage
+		}
+		log.Printf("Defined MongoDB aggregation pipeline: %+v", pipeline)
+
+		log.Println("Executing MongoDB aggregation pipeline")
+		log.Printf("Pipeline details: %+v", pipeline)
+		cursor, err := prCollection.Aggregate(r.Context(), pipeline)
+		if err != nil {
+			log.Printf("Error executing search: %v", err)
+			log.Printf("Error type: %T", err)
+			log.Printf("Full error details: %+v", err)
+			http.Error(w, "Failed to execute search", http.StatusInternalServerError)
+			return
+		}
+		defer cursor.Close(r.Context())
+		log.Println("Successfully executed MongoDB aggregation")
+
+		var results []bson.M
+		if err = cursor.All(r.Context(), &results); err != nil {
+			log.Printf("Error decoding results: %v", err)
+			log.Printf("Error type: %T", err)
+			log.Printf("Full error details: %+v", err)
+			http.Error(w, "Failed to decode search results", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Number of results: %d", len(results))
+
+		var pullRequests []bson.M
+		if err = cursor.All(r.Context(), &pullRequests); err != nil {
+			log.Printf("Error decoding search results: %v", err)
+			http.Error(w, "Failed to decode search results", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Successfully decoded %d pull requests", len(pullRequests))
+
+		// Remove embedding field from each document
+		for i := range pullRequests {
+			delete(pullRequests[i], "embedding")
+		}
+
+		log.Printf("Found %d pull requests matching the search criteria", len(pullRequests))
+
+		response := struct {
+			Success   bool     `json:"success"`
+			Count     int      `json:"count"`
+			Documents []bson.M `json:"documents"`
+		}{
+			Success:   true,
+			Count:     len(pullRequests),
+			Documents: pullRequests,
+		}
+		log.Printf("Prepared response: %+v", response)
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			log.Printf("Error encoding response: %v", err)
+			http.Error(w, "Error encoding response", http.StatusInternalServerError)
+			return
+		}
+		log.Println("Successfully encoded and sent response")
+		log.Println("semanticPullRequestsSearch function completed successfully")
+	}
 }
 
 func syncPullRequests() http.HandlerFunc {

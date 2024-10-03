@@ -23,7 +23,7 @@ var (
 type PullRequest struct {
 	ID        primitive.ObjectID `bson:"_id,omitempty"`
 	Title     string `bson:"title"`
-	Body      string `bson:"body"`
+	Description      string `bson:"description,omitempty"`
 	Embedding []float32 `bson:"embedding,omitempty"`
 }
 
@@ -126,10 +126,10 @@ func StartMongoStream() {
 		pr := PullRequest{
 			ID:    fullDocument["_id"].(primitive.ObjectID),
 			Title: fullDocument["title"].(string),
-			Body:  "",
+			Description:  "",
 		}
-		if body, ok := fullDocument["body"]; ok && body != nil {
-			pr.Body = body.(string)
+		if description, ok := fullDocument["description"]; ok && description != nil {
+			pr.Description = description.(string)
 		}
 
 		// Enqueue the pull request
@@ -162,7 +162,7 @@ func worker(ctx context.Context, collection *mongo.Collection, queue <-chan Pull
 func processDocument(ctx context.Context, collection *mongo.Collection, pr PullRequest) {
 	log.Printf("Processing document: %s", pr.ID)
 
-	embedding, err := generateEmbedding(pr.Title + " " + pr.Body)
+	embedding, err := generateEmbedding(pr.Title + " " + pr.Description)
 	if err != nil {
 		log.Printf("Error generating embedding for document %s: %v", pr.ID, err)
 		return

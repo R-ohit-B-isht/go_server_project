@@ -95,8 +95,19 @@ func main() {
 		Debug: true,
 	})
 
-	// Set up HTTP server with CORS middleware
-	handler := c.Handler(router)
+	// Add logging middleware
+	loggingMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("Incoming request: %s %s", r.Method, r.URL.Path)
+			if r.URL.Path == "/pullrequests-semantic-search" {
+				log.Printf("Semantic search request received: %+v", r)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	// Set up HTTP server with CORS and logging middleware
+	handler := loggingMiddleware(c.Handler(router))
 
 	fmt.Println("Server is starting on port 8080...")
 	if err := http.ListenAndServe(":8080", handler); err != nil {
