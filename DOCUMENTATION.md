@@ -124,6 +124,32 @@ This document provides an overview of the models and routes in the Go server pro
     curl -X DELETE http://localhost:8080/pullrequests/{pullrequest_id}
     ```
 
+- **Collect Pull Requests**:
+  - **Endpoint**: `POST /pullrequests/collect`
+  - **Description**: Collects pull requests from a specified repository within a given date range and stores them in the MongoDB database. Supports pagination to handle large datasets efficiently.
+  - **Parameters**:
+    - `id` (query): The repository ID for which pull requests are to be collected.
+    - `startDate` (body): The start date for the date range (format: YYYY-MM-DD).
+    - `endDate` (body): The end date for the date range (format: YYYY-MM-DD).
+    - `pageSize` (body): The number of pull requests to process per page (default: 10).
+    - `page` (body): The page number to process (default: 1).
+  - **Response**:
+    - `currentPage`: The current page number being processed.
+    - `insertedCount`: The number of pull requests inserted into the database.
+    - `message`: A success message indicating the operation's outcome.
+    - `pageSize`: The number of pull requests processed per page.
+    - `totalCount`: The total number of pull requests available for the specified date range.
+  - **Example**:
+    ```bash
+    curl -X POST 'http://localhost:8080/pullrequests-collect?id=selectedRepo' \
+    -H 'Content-Type: application/json' \
+    -d '{
+      "startDate": "2020-01-01",
+      "endDate": "2021-12-31",
+      "pageSize": 10,
+      "page": 1
+    }'
+
 ## Additional Information
 
 - Replace `{repository_id}` and `{pullrequest_id}` with actual IDs from the database when using the example `curl` requests.

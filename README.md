@@ -39,7 +39,7 @@ This project is a Go server with MongoDB integration, designed to handle operati
 ### Cluster
 
 - **Purpose**: Represents a cluster of pull requests.
-- **Fields**: `name`, `description`, `centroid`, `prs`, `scoreAverage`
+- **Fields**: `name`, `description`, `centroid`, `prs`, `scoreAverage`, `repository`
 - **Example Data**:
   ```json
   {
@@ -47,7 +47,8 @@ This project is a Go server with MongoDB integration, designed to handle operati
     "description": "Cluster of feature-related PRs",
     "centroid": {},
     "prs": ["60f004fdfe01cc4558a7d4a9"],
-    "scoreAverage": 0.85
+    "scoreAverage": 0.85,
+    "repository": "60f004fdfe01cc4558a7d4a9"
   }
   ```
 
@@ -136,6 +137,26 @@ This project is a Go server with MongoDB integration, designed to handle operati
   ```bash
   curl http://localhost:8080/pullrequests
   ```
+
+### Bulk Upload Route
+
+- **Bulk Upload Pull Requests**:
+  - **Purpose**: Upload multiple pull requests in a single request.
+  - **Endpoint**: `/bulk-upload`
+  - **Method**: POST
+  - **Request Format**: JSON
+  - **Example Request**:
+    ```bash
+    curl -X POST -H "Content-Type: application/json" -d '{"prs":[{"prId":"123","title":"Test PR","author":"Author"},{"prId":"124","title":"Another PR","author":"Author"}]}' http://localhost:8080/bulk-upload
+    ```
+  - **Response Format**: JSON
+  - **Example Response**:
+    ```json
+    {
+      "success_count": 2,
+      "failed_prs": []
+    }
+    ```
 
 ### Cluster Routes
 

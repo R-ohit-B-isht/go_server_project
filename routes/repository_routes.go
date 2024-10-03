@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 
@@ -38,8 +39,14 @@ func createRepository(collection *mongo.Collection) http.HandlerFunc {
 		if repository.PullRequests == nil {
 			repository.PullRequests = []primitive.ObjectID{}
 		}
+		// Ensure PullRequests field is explicitly set in the document
+		repositoryDoc := bson.M{
+			"name":         repository.Name,
+			"url":          repository.URL,
+			"pullRequests": repository.PullRequests,
+		}
 
-		result, err := collection.InsertOne(r.Context(), repository)
+		result, err := collection.InsertOne(r.Context(), repositoryDoc)
 		if err != nil {
 			log.Printf("Error creating repository: %v", err)
 			http.Error(w, "Failed to create repository", http.StatusInternalServerError)
