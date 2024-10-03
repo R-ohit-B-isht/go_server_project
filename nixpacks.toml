@@ -2,4 +2,4 @@
 cmds = ['''GOOS=linux GOARCH=amd64 go build -ldflags='-s' -o=./bin ./''']
 
 [start]
-cmds = ['''./bin''']
+cmds = ['''./bin/go_server_project ''']
