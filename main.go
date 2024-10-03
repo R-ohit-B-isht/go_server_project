@@ -15,7 +15,7 @@ import (
 
 	"go_server_project/models"
 	"go_server_project/routes"
-	"go_server_project/streams"
+	// "go_server_project/streams"
 	"go_server_project/index"
 )
 
@@ -57,7 +57,7 @@ func main() {
     index.CreateVectorSearchIndex(client)
 
 	// Start MongoDB change stream
-	go streams.StartMongoStream()
+	// go streams.StartMongoStream()
 
 	// Initialize Bloom filter
 	models.InitPRBloomFilter(1000000, 0.01) // Capacity: 1 million, False Positive Rate: 1%

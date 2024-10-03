@@ -39,7 +39,7 @@ func init() {
 	openAIClient = openai.NewClient(openAIKey)
 
 	// Search for existing documents without embeddings
-	Synchroniser()
+	// Synchroniser()
 }
 
 func Synchroniser() {

@@ -75,8 +75,7 @@ func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *
 		// Generate embeddings using OpenAI API
 		log.Println("Generating embeddings using OpenAI API")
 		client := &http.Client{}
-		// Include both searchText, title, and description in the embedding request
-		requestBody := fmt.Sprintf(`{"input": ["%s", "title", "description"], "model": "text-embedding-ada-002"}`, searchRequest.SearchText)
+		requestBody := fmt.Sprintf(`{"input": "%s", "model": "text-embedding-ada-002"}`, searchRequest.SearchText)
 		log.Printf("OpenAI API Request Body: %s", requestBody)
 		req, err := http.NewRequest("POST", "https://api.openai.com/v1/embeddings", strings.NewReader(requestBody))
 		if err != nil {
@@ -143,24 +142,28 @@ func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *
 
 		// Define the pipeline for vector search
 		pipeline := mongo.Pipeline{
-			{{Key: "$search", Value: bson.M{
-				"index": "vectorSearch",
-				"knnBeta": bson.M{
-					"vector": queryVector,
-					"path": "embedding",
-					"k": 100,
-				},
+			{{Key: "$vectorSearch", Value: bson.M{
+				"index": "vectorSemanticSearch",
+				"path": "embedding",
+				"queryVector": queryVector,
+				"numCandidates": 100,
+				"limit": 10,
 			}}},
-			{{Key: "$match", Value: bson.M{"repository": objectID}}},
 			{{Key: "$addFields", Value: bson.M{
-				"score": bson.M{"$meta": "searchScore"},
+				"score": bson.M{"$meta": "vectorSearchScore"},
 			}}},
-			{{Key: "$limit", Value: 10}}, // Add limit stage
+			{{Key: "$match", Value: bson.M{
+				"repository": objectID,
+			}}},
 		}
 		log.Printf("Defined MongoDB aggregation pipeline: %+v", pipeline)
+		log.Printf("Query vector type: %T", queryVector)
+		log.Printf("Query vector length: %d", len(queryVector))
+		log.Printf("Query vector first 5 elements: %v", queryVector[:5])
 
 		log.Println("Executing MongoDB aggregation pipeline")
 		log.Printf("Pipeline details: %+v", pipeline)
+		log.Printf("Query vector: %v", queryVector[:5]) // Log first 5 elements of query vector
 		cursor, err := prCollection.Aggregate(r.Context(), pipeline)
 		if err != nil {
 			log.Printf("Error executing search: %v", err)
@@ -172,19 +175,11 @@ func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *
 		defer cursor.Close(r.Context())
 		log.Println("Successfully executed MongoDB aggregation")
 
-		var results []bson.M
-		if err = cursor.All(r.Context(), &results); err != nil {
-			log.Printf("Error decoding results: %v", err)
-			log.Printf("Error type: %T", err)
-			log.Printf("Full error details: %+v", err)
-			http.Error(w, "Failed to decode search results", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("Number of results: %d", len(results))
-
 		var pullRequests []bson.M
 		if err = cursor.All(r.Context(), &pullRequests); err != nil {
 			log.Printf("Error decoding search results: %v", err)
+			log.Printf("Error type: %T", err)
+			log.Printf("Full error details: %+v", err)
 			http.Error(w, "Failed to decode search results", http.StatusInternalServerError)
 			return
 		}
