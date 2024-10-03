@@ -10,7 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"github.com/joho/godotenv"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -28,14 +27,10 @@ type PullRequest struct {
 }
 
 func init() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
 
-	mongoURI := os.Getenv("MONGO_URI")
+	mongoURI := "mongodb+srv://mentor:mentor@cluster0.hpj3khd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 	openAIKey := os.Getenv("OPENAI_API_KEY")
-
+    err:= error(nil)
 	mongoClient, err = mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatal(err)
