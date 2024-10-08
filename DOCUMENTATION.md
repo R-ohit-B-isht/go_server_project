@@ -1,6 +1,6 @@
 # Go Server Project Documentation
 
-This document provides an overview of the models and routes in the Go server project, along with example `curl` requests for interacting with the API.
+This document provides an overview of the models and routes in the Go server project, along with example `curl` requests for interacting with the API
 
 ## Models
 
