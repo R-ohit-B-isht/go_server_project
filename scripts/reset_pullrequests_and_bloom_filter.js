@@ -9,7 +9,7 @@ async function main() {
 
   try {
     await client.connect();
-    console.log('Connected successfully to server');
+    console.log('Connected successfully to server');chan try
 
     const db = client.db(dbName);
     const collection = db.collection('pullrequests');
@@ -24,14 +24,14 @@ async function main() {
 
     // Verify deletion
     const countAfter = await collection.countDocuments();
-    console.log(`Number of documents after deletion: ${countAfter}`);
-
+    console.log(`Number of documents after deletion: ${countAfter}`);parameter else
+ntext net
     if (countAfter === 0) {
       console.log('All pull requests have been successfully deleted.');
     } else {
       console.log('Warning: Some documents may not have been deleted.');
     }
-
+argument fu
     // Reset Bloom filter
     console.log('Resetting Bloom filter...');
     exec('go run /home/ubuntu/go_server_project/main.go reset-bloom-filter', (error, stdout, stderr) => {

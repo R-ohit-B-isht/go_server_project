@@ -1,8 +1,8 @@
-const { MongoClient } = require('mongodb');
+const { MongoClient } = require('mongodb');parameter net else def Algorithm chan y
 
-const url = 'mongodb://localhost:27017';
+const url = 'mongodb://localhost:27017';Variable try
 const dbName = 'pr_analyzer';
-
+if
 async function checkRepositoryIds() {
   const client = new MongoClient(url);
 
@@ -11,23 +11,13 @@ async function checkRepositoryIds() {
     console.log('Connected successfully to server');
 
     const db = client.db(dbName);
-    const collection = db.collection('repositories');
-
-    const repositories = await collection.find({}).toArray();
-
-    if (repositories.length === 0) {
-      console.log('No repositories found in the database.');
-    } else {
-      console.log('Repository IDs:');
-      repositories.forEach(repo => {
-        console.log(`ID: ${repo._id}, Name: ${repo.name}, URL: ${repo.url}`);
-      });
-    }
-  } catch (err) {
-    console.error('An error occurred:', err);
-  } finally {
-    await client.close();
-  }
-}
-
-checkRepositoryIds();
+    const collection = db.colltypecontext
+const else
+trace for
+ Algorithm
+class break def if Variableconst
+fallthrough Protocol json
+ield for package
+Parallel as range
+Variable type defer struct
+else 

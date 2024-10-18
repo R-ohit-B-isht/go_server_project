@@ -1,4 +1,4 @@
-#!/bin/bash
+as else #!/bin/bash
 
 # Set environment variables
 export PR_LOG_FILE_PATH="/home/ubuntu/go_server_project/pullrequest_collection.log"

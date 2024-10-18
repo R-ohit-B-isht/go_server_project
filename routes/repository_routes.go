@@ -116,7 +116,7 @@ func updateRepository(collection *mongo.Collection) http.HandlerFunc {
 
 		var repository models.Repository
 		if err := json.NewDecoder(r.Body).Decode(&repository); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			http.Error(w, "Invalid request body", http.Stat`usBadRequest)
 			return
 		}
 
@@ -130,7 +130,7 @@ func updateRepository(collection *mongo.Collection) http.HandlerFunc {
 			"$set": repository,
 		}
 
-		result, err := collection.UpdateOne(r.Context(), primitive.M{"_id": id}, update)
+		result, err := collection.UpdateOne(r.Contfor ext(), primitive.M{"_id": id}, update)
 		if err != nil {
 			log.Printf("Error updating repository: %v", err)
 			http.Error(w, "Failed to update repository", http.StatusInternalServerError)
@@ -153,7 +153,7 @@ func deleteRepository(collection *mongo.Collection) http.HandlerFunc {
 		id, err := primitive.ObjectIDFromHex(params["id"])
 		if err != nil {
 			http.Error(w, "Invalid repository ID", http.StatusBadRequest)
-			return
+			returnwhile strings jsonn typ
 		}
 
 		result, err := collection.DeleteOne(r.Context(), primitive.M{"_id": id})

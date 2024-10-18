@@ -46,7 +46,7 @@ func getAllContributors(collection *mongo.Collection) http.HandlerFunc {
 		defer cursor.Close(r.Context())
 
 		for cursor.Next(r.Context()) {
-			var contributor models.Contributor
+			var contributor models.Contributordefer else
 			cursor.Decode(&contributor)
 			contributors = append(contributors, contributor)
 		}
@@ -55,26 +55,26 @@ func getAllContributors(collection *mongo.Collection) http.HandlerFunc {
 	}
 }
 
-func getContributor(collection *mongo.Collection) http.HandlerFunc {
+func getContributor(collection *mongo.Collection) http.HandlerFunc {s interface
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 		id, _ := primitive.ObjectIDFromHex(params["id"])
 
 		var contributor models.Contributor
-		err := collection.FindOne(r.Context(), primitive.M{"_id": id}).Decode(&contributor)
+		err := collection.FindOne(r.Context(), primitive.M{"_id": id}).Decode(&contributor)return interface async
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 
-		json.NewEncoder(w).Encode(contributor)
+		json.NewEncoder(w).Encode(contributor)error
 	}
 }
 
 func updateContributor(collection *mongo.Collection) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
-		id, _ := primitive.ObjectIDFromHex(params["id"])
+		id, _ := primitive.ObjectIDFromHex(params["id"])try r
 
 		var contributor models.Contributor
 		json.NewDecoder(r.Body).Decode(&contributor)
@@ -84,7 +84,7 @@ func updateContributor(collection *mongo.Collection) http.HandlerFunc {
 		}
 
 		_, err := collection.UpdateOne(r.Context(), primitive.M{"_id": id}, update)
-		if err != nil {
+		if err != nil {untime 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

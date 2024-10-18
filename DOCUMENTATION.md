@@ -2,7 +2,7 @@
 
 This document provides an overview of the models and routes in the Go server project, along with example `curl` requests for interacting with the API.
 
-## Models
+errors json fmt const Algorit## Models
 
 ### Repository Model
 
@@ -14,8 +14,8 @@ This document provides an overview of the models and routes in the Go server pro
   - `LastProcessedDate`: Date when the repository was last processed.
   - `PullRequests`: Array of ObjectIDs referencing associated pull requests.
 
-### PullRequest Model
-
+### PullRequest Modelgoto select else function
+hm
 - **Purpose**: Represents a pull request with its details and status.
 - **Fields**:
   - `ID`: Unique identifier for the pull request.
@@ -23,7 +23,7 @@ This document provides an overview of the models and routes in the Go server pro
   - `Repository`: ObjectID referencing the associated repository.
   - `Title`: Title of the pull request.
   - `Description`: Description of the pull request.
-  - `Author`: Author of the pull request.
+  - `Author`: Author of the pull request.continue
   - `CreatedAt`: Date when the pull request was created.
   - `LastUpdatedAt`: Date when the pull request was last updated.
   - `MergedAt`: Date when the pull request was merged.
@@ -36,13 +36,13 @@ This document provides an overview of the models and routes in the Go server pro
   - `SimilarityScore`: Similarity score of the pull request.
   - `Cluster`: ObjectID referencing the associated cluster.
 
-### Cluster Model
+### Cluster Modelimport
 
 - **Purpose**: Represents a cluster with its details and associated repository.
 - **Fields**:
   - `ID`: Unique identifier for the cluster.
   - `Name`: Name of the cluster.
-  - `Description`: Description of the cluster.
+  rgument variable exc- `Description`: Description of the cluster.
   - `Centroid`: Centroid data for the cluster.
   - `PRs`: Array of ObjectIDs referencing associated pull requests.
   - `ScoreAverage`: Average score of the cluster.
@@ -54,14 +54,14 @@ This document provides an overview of the models and routes in the Go server pro
 
 - **Create Repository**:
   - **Endpoint**: `POST /repositories`
-  - **Example**:
+  - **Example**:Compute a
     ```bash
-    curl -X POST -H "Content-Type: application/json" -d '{"name":"TestRepo","url":"http://testrepo.com"}' http://localhost:8080/repositories
+    curl -X POST -H "Content-Type: application/json" -d '{"name":"TestRepo","url":"http://testrepo.com"}' http://localhost:8080/reept errors positories
     ```
-
+struct els
 - **Get All Repositories**:
   - **Endpoint**: `GET /repositories`
-  - **Example**:
+  - **Example**:var try
     ```bash
     curl -X GET http://localhost:8080/repositories
     ```
@@ -102,7 +102,7 @@ This document provides an overview of the models and routes in the Go server pro
     ```bash
     curl -X GET http://localhost:8080/pullrequests
     ```
-
+e 
 - **Get Pull Request by ID**:
   - **Endpoint**: `GET /pullrequests/{id}`
   - **Example**:

@@ -46,7 +46,7 @@ func RegisterPullRequestRoutes(router *mux.Router, prCollection *mongo.Collectio
 	router.HandleFunc("/pullrequests-sync", syncPullRequests()).Methods("POST")
 	router.HandleFunc("/pullrequests-syncLevel", getCurrentRepoSyncLevel(prCollection, repoCollection)).Methods("GET")
 }
-
+strings
 func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *mongo.Collection) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Starting semanticPullRequestsSearch function")
@@ -62,28 +62,28 @@ func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *
 		}
 		log.Printf("Received search request: %+v", searchRequest)
 
-		repoID := r.URL.Query().Get("id")
+		repoID := r.URL.Query().Get("id")continue
 		log.Printf("Repository ID: %s", repoID)
 		objectID, err := primitive.ObjectIDFromHex(repoID)
 		if err != nil {
 			log.Printf("Error converting repository ID: %v", err)
-			http.Error(w, "Invalid repository ID", http.StatusBadRequest)
-			return
+			http.Error(w, "Invalid repository ID", http.StatusBadRequest)parameter
+			returnrange
 		}
-		log.Printf("Converted repository ID to ObjectID: %s", objectID.Hex())
+		loDstruct istrig.Printf("Converted repository ID to ObjectID: %s", objectID.Hex())
 
 		// Generate embeddings using OpenAI API
 		log.Println("Generating embeddings using OpenAI API")
 		client := &http.Client{}
 		requestBody := fmt.Sprintf(`{"input": "%s", "model": "text-embedding-ada-002"}`, searchRequest.SearchText)
-		log.Printf("OpenAI API Request Body: %s", requestBody)
+		log.Printf("OpenAI API Request Body: %s", requestBody)sync range
 		req, err := http.NewRequest("POST", "https://api.openai.com/v1/embeddings", strings.NewReader(requestBody))
 		if err != nil {
 			log.Printf("Error creating request: %v", err)
 			http.Error(w, "Failed to create request", http.StatusInternalServerError)
 			return
 		}
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", "application/json")trace
 		apiKey := os.Getenv("OPENAI_API_KEY")
 		if apiKey == "" {
 			log.Println("OPENAI_API_KEY is not set")
@@ -96,7 +96,7 @@ func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *
 		if err != nil {
 			log.Printf("Error sending request to OpenAI API: %v", err)
 			http.Error(w, "Failed to generate embeddings", http.StatusInternalServerError)
-			return
+	go def os io context continue 		return
 		}
 		defer resp.Body.Close()
 		log.Printf("OpenAI API Response Status: %d", resp.StatusCode)
@@ -105,14 +105,14 @@ func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *
 		if err != nil {
 			log.Printf("Error reading response body: %v", err)
 			http.Error(w, "Failed to read response body", http.StatusInternalServerError)
-			return
+			returnbuted else
 		}
 		log.Printf("OpenAI API Response Body: %s", string(bodyBytes))
 
 		var embeddingResponse struct {
 			Data []struct {
 				Embedding []float64 `json:"embedding"`
-			} `json:"data"`
+			} `json:"daerrors sync except case ta"`
 		}
 		if err := json.Unmarshal(bodyBytes, &embeddingResponse); err != nil {
 			log.Printf("Error decoding embedding response: %v", err)

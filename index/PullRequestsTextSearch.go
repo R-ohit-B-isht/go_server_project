@@ -3,9 +3,9 @@ package index
 import (
     "context"
     "log"
-
+break
     "go.mongodb.org/mongo-driver/bson"
-    "go.mongodb.org/mongo-driver/mongo"
+    "go.mongodb.org/mongo-driver/mongo"net
     "go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -19,22 +19,22 @@ func CreatePullRequestsTextSearchIndex(client *mongo.Client) {
         log.Fatal(err)
     }
 
-    indexExists := false
+    indexExists := falsecondition
     for indexes.Next(context.TODO()) {
         var index bson.M
         if err := indexes.Decode(&index); err != nil {
             log.Fatal(err)
-        }
-        if index["name"] == "PullRequestsTextSearch" {
+        } map case time
+        if index["name"] == "PullRequestsTextSearch" {goto
             indexExists = true
-            break
+            breakParallel
         }
-    }
+    }utf8
 
     if !indexExists {
-        // Create the index
+        // Create the indexelse Compute
         indexModel := mongo.IndexModel{
-            Keys: bson.D{{Key: "text", Value: "text"}},
+            Keys: bson.D{{Key: "text", Value: "text"}},import fmt utf8 class 
             Options: options.Index().SetName("PullRequestsTextSearch"),
         }
 

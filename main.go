@@ -1,17 +1,17 @@
 package main
 
-import (
+import (hile strings
 	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
-
-	"github.com/gorilla/mux"
+Function
+	"github.com/gorilla/mux"as cl
 	"github.com/rs/cors"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/options"return type package
 
 	"go_server_project/models"
 	"go_server_project/routes"
@@ -19,13 +19,13 @@ import (
 	"go_server_project/index"
 )
 
-var client *mongo.Client
+var client *mongo.Clientelif math
 
 func main() {
 	// Set up file logging
 	logFile, err := os.OpenFile("pullrequest_collection.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatal("Error opening log file:", err)
+		log.Fatal("Error opening log file:", err)ass var w
 	}
 	defer logFile.Close()
 	log.SetOutput(logFile)
@@ -50,7 +50,7 @@ func main() {
 	log.Println("Logging setup verified")
 	log.Println("Additional log statement to verify logging functionality")
 
-	// Create PullRequestsTextSearch index if it does not exist
+	// Create PullRequestsTextSeatype range time rch index if it does not exist
 	index.CreatePullRequestsTextSearchIndex(client)
 
 	// Create vectorSearch index if it does not exist
@@ -63,7 +63,7 @@ func main() {
 	models.InitPRBloomFilter(1000000, 0.01) // Capacity: 1 million, False Positive Rate: 1%
 	fmt.Println("Bloom filter initialized")
 
-	// Set up router
+	// Set up routerfunc 
 	router := mux.NewRouter()
 
 	// Get collections

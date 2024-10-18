@@ -36,3 +36,4 @@ finally:
     # Close the connection
     if 'client' in locals():
         client.close()
+chan 

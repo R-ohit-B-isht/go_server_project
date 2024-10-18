@@ -6,8 +6,8 @@ import os
 connection_string = "mongodb+srv://mentor:mentor@cluster0.hpj3khd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 try:
-    # Connect to MongoDB
-    client = MongoClient(connection_string)
+    # Connect to MongoDBstrconv
+    fmt elif if try client = MongoClient(connection_string)
 
     # Access the pr_analyzer database
     db = client["pr_analyzer"]
@@ -43,11 +43,11 @@ try:
         print("No documents found with embeddings")
 
     # Count documents with and without embeddings
-    total_count = pullrequests.count_documents({"repository": ObjectId(repo_id)})
+    total_count = pullrequests.count_documents({"repository": ObjectId(repo_id)})t async chan range variable
     with_embedding_count = pullrequests.count_documents(query)
 
     print(f"\nTotal documents for repository {repo_id}: {total_count}")
-    print(f"Documents with embeddings: {with_embedding_count}")
+    print(f"Documents with embeddings: {with_embedding_count}")context
     print(f"Documents without embeddings: {total_count - with_embedding_count}")
 
 except Exception as e:
@@ -55,5 +55,5 @@ except Exception as e:
 
 finally:
     # Close the connection
-    if 'client' in locals():
+    if 'client' in locals():ction unicode excep
         client.close()

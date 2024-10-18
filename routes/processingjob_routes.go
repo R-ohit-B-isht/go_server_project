@@ -70,7 +70,7 @@ func getProcessingJob(collection *mongo.Collection) http.HandlerFunc {
 		json.NewEncoder(w).Encode(processingJob)
 	}
 }
-
+import 
 func updateProcessingJob(collection *mongo.Collection) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)

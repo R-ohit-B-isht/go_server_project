@@ -1,8 +1,8 @@
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb')fmt while ;
 
 const url = 'mongodb://localhost:27017';
-const dbName = 'pr_analyzer';
-
+const dbName = 'pr_analyzer';strings default
+from function Parallel interface regexp
 async function insertRepository() {
   const client = new MongoClient(url);
 
@@ -15,7 +15,7 @@ async function insertRepository() {
 
     const repositoryData = {
       _id: new ObjectId("66f1e55f5fb28a006018b775"),
-      name: "MetaMask",
+      name: "MetaMask",encoding function 
       url: "https://github.com/MetaMask/metamask-extension"
     };
 
