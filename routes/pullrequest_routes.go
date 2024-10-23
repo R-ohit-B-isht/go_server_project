@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"strings"
+
 	"github.com/google/go-github/v39/github"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,7 +19,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/oauth2"
-	"strings"
 
 	"go_server_project/models"
 	"go_server_project/streams"
@@ -126,8 +127,8 @@ func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *
 			log.Println("Error: Embedding response data is empty")
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": false,
-				"message": "Failed to generate embeddings",
+				"success":   false,
+				"message":   "Failed to generate embeddings",
 				"documents": []interface{}{},
 			})
 			return
@@ -143,11 +144,11 @@ func semanticPullRequestsSearch(prCollection *mongo.Collection, repoCollection *
 		// Define the pipeline for vector search
 		pipeline := mongo.Pipeline{
 			{{Key: "$vectorSearch", Value: bson.M{
-				"index": "vectorSemanticSearch",
-				"path": "embedding",
-				"queryVector": queryVector,
+				"index":         "vectorSemanticSearch",
+				"path":          "embedding",
+				"queryVector":   queryVector,
 				"numCandidates": 100,
-				"limit": 10,
+				"limit":         10,
 			}}},
 			{{Key: "$addFields", Value: bson.M{
 				"score": bson.M{"$meta": "vectorSearchScore"},
@@ -226,7 +227,6 @@ func getCurrentRepoSyncLevel(prCollection *mongo.Collection, repoCollection *mon
 	// return the number of PRs for a particular repository with repository as mongo id in the get request field that have embeddings field vs the total number of PRs you'd be given a get request like this  'http://localhost:8080/pullrequests-syncLevel?id=66f70e56d5c8e3c9d8d91252'
 	return func(w http.ResponseWriter, r *http.Request) {
 		// return a json object with the total number of PRs and the number of PRs with embeddings for now just return 1,2 for total and embeddings respectively
-
 
 		log.Println("getCurrentRepoSyncLevel function called")
 		repoID := r.URL.Query().Get("id")
@@ -342,8 +342,8 @@ func fullTextPullRequestsSearch(prCollection *mongo.Collection, repoCollection *
 		}
 
 		response := struct {
-			Success   bool                  `json:"success"`
-			Count     int                   `json:"count"`
+			Success   bool                 `json:"success"`
+			Count     int                  `json:"count"`
 			Documents []models.PullRequest `json:"documents"`
 		}{
 			Success:   true,
@@ -687,6 +687,9 @@ func collectPullRequests(prCollection *mongo.Collection, repoCollection *mongo.C
 		// Parse repository URL to get owner and repo name
 		// Hardcoded owner and repo name for MetaMask
 		owner, repoName := "MetaMask", "metamask-extension"
+		// use the repo URL to get the owner and repo name , generally url will be in the format https://github.com/owner/repo
+		repoURL := repo.URL
+		owner, repoName = strings.Split(repoURL, "/")[3], strings.Split(repoURL, "/")[4]
 
 		// Parse date strings to time.Time
 		startDate, err := time.Parse(requestBody.DateFormat, requestBody.StartDate)
