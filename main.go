@@ -88,7 +88,7 @@ func main() {
 
 	// Set up CORS middleware
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"https://pr-analyzer-frontend-production.up.railway.app","http://localhost:3000", "http://localhost:8080"},
+		AllowedOrigins: []string{"https://pr-analyzer-frontend-production.up.railway.app","http://localhost:3000","http://serveo.net:59000","http://serveo.net:59001", "http://localhost:8080"},
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"Origin", "Content-Type", "X-Auth-Token", "Authorization"},
 		AllowCredentials: true,

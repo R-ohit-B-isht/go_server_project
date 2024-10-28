@@ -690,6 +690,7 @@ func collectPullRequests(prCollection *mongo.Collection, repoCollection *mongo.C
 		// use the repo URL to get the owner and repo name , generally url will be in the format https://github.com/owner/repo
 		repoURL := repo.URL
 		owner, repoName = strings.Split(repoURL, "/")[3], strings.Split(repoURL, "/")[4]
+		repoName=strings.Split(repoName,".")[0]
 
 		// Parse date strings to time.Time
 		startDate, err := time.Parse(requestBody.DateFormat, requestBody.StartDate)
